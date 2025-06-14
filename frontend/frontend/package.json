@@ -1,0 +1,16 @@
+{
+  "dependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^24.0.1",
+    "autoprefixer": "^10.4.21",
+    "jsdom": "^26.1.0",
+    "lucide-react": "^0.515.0",
+    "postcss": "^8.5.5",
+    "recharts": "^2.15.3",
+    "socket.io-client": "^4.8.1",
+    "tailwindcss": "^4.1.10",
+    "vitest": "^3.2.3"
+  }
+}
