@@ -38,7 +38,7 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header 
       className={`
-        bg-white border-b border-gray-200 shadow-sm
+        bg-slate-800 border-b border-slate-700 shadow-sm
         ${className}
       `}
       {...props}
@@ -50,7 +50,7 @@ export const Header: React.FC<HeaderProps> = ({
             {/* Mobile menu button */}
             <button
               type="button"
-              className="lg:hidden p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100"
+              className="lg:hidden p-2 rounded-md text-slate-400 hover:text-slate-300 hover:bg-slate-700"
               onClick={onMenuClick}
             >
               <Menu className="w-5 h-5" />
@@ -60,15 +60,15 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="hidden md:block ml-4">
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Search className="h-4 w-4 text-gray-400" />
+                  <Search className="h-4 w-4 text-slate-400" />
                 </div>
                 <input
                   type="text"
                   placeholder="Search devices..."
                   className="
-                    block w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg
-                    text-sm placeholder-gray-500 focus:outline-none focus:ring-2
-                    focus:ring-primary-500 focus:border-primary-500
+                    block w-full pl-9 pr-3 py-2 border border-slate-600 rounded-lg
+                    text-sm placeholder-slate-400 focus:outline-none focus:ring-2
+                    focus:ring-blue-500 focus:border-blue-500 bg-slate-700 text-white
                   "
                 />
               </div>
@@ -82,14 +82,14 @@ export const Header: React.FC<HeaderProps> = ({
               {isOnline ? (
                 <>
                   <Wifi className="w-4 h-4 text-success-600" />
-                  <span className="hidden sm:block text-sm text-gray-600">
+                  <span className="hidden sm:block text-sm text-slate-300">
                     Connected
                   </span>
                 </>
               ) : (
                 <>
                   <WifiOff className="w-4 h-4 text-danger-600" />
-                  <span className="hidden sm:block text-sm text-danger-600">
+                  <span className="hidden sm:block text-sm text-red-400">
                     Offline
                   </span>
                 </>
@@ -99,7 +99,7 @@ export const Header: React.FC<HeaderProps> = ({
             {/* Energy status */}
             <div className="hidden sm:flex items-center space-x-2">
               <Battery className="w-4 h-4 text-success-600" />
-              <span className="text-sm text-gray-600">
+              <span className="text-sm text-slate-300">
                 245W
               </span>
             </div>
@@ -110,7 +110,7 @@ export const Header: React.FC<HeaderProps> = ({
             {/* Dark mode toggle */}
             <button
               type="button"
-              className="p-2 rounded-lg text-gray-400 hover:text-gray-500 hover:bg-gray-100"
+              className="p-2 rounded-lg text-slate-400 hover:text-slate-300 hover:bg-slate-700"
               onClick={() => setIsDarkMode(!isDarkMode)}
             >
               {isDarkMode ? (
@@ -123,7 +123,7 @@ export const Header: React.FC<HeaderProps> = ({
             {/* Notifications */}
             <button
               type="button"
-              className="relative p-2 rounded-lg text-gray-400 hover:text-gray-500 hover:bg-gray-100"
+              className="relative p-2 rounded-lg text-slate-400 hover:text-slate-300 hover:bg-slate-700"
             >
               <Bell className="w-5 h-5" />
               {notifications > 0 && (
@@ -137,10 +137,10 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="relative">
               <button
                 type="button"
-                className="flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-primary-500"
+                className="flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
-                  <span className="text-sm font-medium text-gray-700">JD</span>
+                <div className="w-8 h-8 bg-slate-600 rounded-full flex items-center justify-center">
+                  <span className="text-sm font-medium text-white">JD</span>
                 </div>
               </button>
             </div>
@@ -149,24 +149,24 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Quick stats bar */}
-      <div className="bg-gray-50 px-4 sm:px-6 lg:px-8 py-2 border-t border-gray-200">
+      <div className="bg-slate-900 px-4 sm:px-6 lg:px-8 py-2 border-t border-slate-700">
         <div className="flex items-center justify-between text-sm">
           <div className="flex items-center space-x-6">
             <div className="flex items-center space-x-2">
               <div className="w-2 h-2 bg-success-500 rounded-full"></div>
-              <span className="text-gray-600">5 devices online</span>
+              <span className="text-slate-300">5 devices online</span>
             </div>
             <div className="flex items-center space-x-2">
               <div className="w-2 h-2 bg-warning-500 rounded-full"></div>
-              <span className="text-gray-600">245W active consumption</span>
+              <span className="text-slate-300">245W active consumption</span>
             </div>
             <div className="flex items-center space-x-2">
               <div className="w-2 h-2 bg-primary-500 rounded-full"></div>
-              <span className="text-gray-600">$2.45 today</span>
+              <span className="text-slate-300">$2.45 today</span>
             </div>
           </div>
           
-          <div className="hidden md:block text-gray-500">
+          <div className="hidden md:block text-slate-400">
             Last updated: {new Date().toLocaleTimeString()}
           </div>
         </div>

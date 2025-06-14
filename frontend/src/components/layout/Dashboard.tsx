@@ -16,7 +16,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
   return (
     <div 
-      className={`min-h-screen bg-gray-50 ${className}`}
+      className={`min-h-screen bg-slate-900 flex ${className}`}
       {...props}
     >
       {/* Mobile sidebar overlay */}
@@ -33,11 +33,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
       <Sidebar 
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
-        className="fixed inset-y-0 left-0 z-50 w-64 lg:static lg:translate-x-0"
+        className="fixed inset-y-0 left-0 z-50 w-64 lg:relative lg:translate-x-0 lg:flex lg:flex-col"
       />
 
       {/* Main content area */}
-      <div className="lg:pl-64">
+      <div className="flex-1 flex flex-col lg:pl-0">
         {/* Header */}
         <Header 
           onMenuClick={() => setSidebarOpen(true)}

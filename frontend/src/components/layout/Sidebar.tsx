@@ -39,7 +39,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <div 
       className={`
-        flex flex-col w-64 h-full bg-white border-r border-gray-200 
+        flex flex-col w-64 h-screen bg-slate-800 border-r border-slate-700 
         transform transition-transform duration-300 ease-in-out
         ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         ${className}
@@ -47,7 +47,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {...props}
     >
       {/* Sidebar header */}
-      <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200">
+      <div className="flex items-center justify-between h-16 px-4 border-b border-slate-700">
         <div className="flex items-center">
           <div className="flex-shrink-0">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
@@ -55,17 +55,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           </div>
           <div className="ml-3">
-            <h1 className="text-lg font-semibold text-gray-900">
+            <h1 className="text-lg font-semibold text-white">
               SmartPlug
             </h1>
-            <p className="text-xs text-gray-500">Energy Manager</p>
+            <p className="text-xs text-slate-400">Energy Manager</p>
           </div>
         </div>
         
         {/* Close button for mobile */}
         <button
           type="button"
-          className="lg:hidden p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100"
+          className="lg:hidden p-2 rounded-md text-slate-400 hover:text-slate-300 hover:bg-slate-700"
           onClick={onClose}
         >
           <X className="w-5 h-5" />
@@ -85,8 +85,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 transition-colors duration-200 w-full
                 ${
                   item.current
-                    ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700'
-                    : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
+                    ? 'bg-blue-900 text-blue-400 border-r-2 border-blue-400'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-700'
                 }
               `}
               onClick={(e) => {
@@ -100,8 +100,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   mr-3 flex-shrink-0 h-5 w-5
                   ${
                     item.current
-                      ? 'text-blue-600'
-                      : 'text-gray-400 group-hover:text-gray-500'
+                      ? 'text-blue-400'
+                      : 'text-slate-400 group-hover:text-slate-300'
                   }
                 `}
               />
@@ -109,7 +109,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               
               {/* Badge */}
               {item.badge && (
-                <span className="ml-2 px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded-full font-medium">
+                <span className="ml-2 px-2 py-0.5 text-xs bg-blue-900 text-blue-400 rounded-full font-medium">
                   {item.badge}
                 </span>
               )}
@@ -119,16 +119,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </nav>
 
       {/* Sidebar footer */}
-      <div className="p-4 border-t border-gray-200">
+      <div className="p-4 border-t border-slate-700">
         <div className="flex items-center">
           <div className="flex-shrink-0">
-            <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center">
-              <span className="text-sm font-medium text-gray-700">JD</span>
+            <div className="w-8 h-8 bg-slate-600 rounded-full flex items-center justify-center">
+              <span className="text-sm font-medium text-white">JD</span>
             </div>
           </div>
           <div className="ml-3">
-            <p className="text-sm font-medium text-gray-900">John Doe</p>
-            <p className="text-xs text-gray-500">john@example.com</p>
+            <p className="text-sm font-medium text-white">John Doe</p>
+            <p className="text-xs text-slate-400">john@example.com</p>
           </div>
         </div>
       </div>
