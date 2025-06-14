@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
-import { ModalProps, ModalSize } from '../../types';
+import type { ModalProps } from '../../types/Modal';
+import { ModalSize } from '../../types/Modal';
 import { Button } from './Button';
 
 const sizeClasses = {
@@ -169,7 +170,7 @@ interface ConfirmModalProps {
   message: string;
   confirmText?: string;
   cancelText?: string;
-  variant?: 'danger' | 'warning' | 'info';
+  variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'outline';
   loading?: boolean;
 }
 
@@ -181,7 +182,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   message,
   confirmText = 'Confirm',
   cancelText = 'Cancel',
-  variant = 'danger',
+  variant = 'primary',
   loading = false
 }) => {
   return (

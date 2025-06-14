@@ -186,23 +186,6 @@ export interface SubscriptionInfo {
   features: string[];
 }
 
-// Import statements from other type files
-import { 
-  SmartPlug, 
-  DeviceAction, 
-  Protocol, 
-  DeviceDiscoveryResult, 
-  DeviceStatus, 
-  PowerReading 
-} from './Device';
-import { 
-  EnergyConsumption, 
-  EnergyAnalytics, 
-  CostAnalysis, 
-  TimePeriod, 
-  RealTimeEnergyData 
-} from './Energy';
-
 // Enums
 export enum WebSocketMessageType {
   DEVICE_STATUS_UPDATE = 'device_status_update',
@@ -267,3 +250,20 @@ export interface ApiRoute {
     window: number; // in seconds
   };
 }
+
+// Type-only imports to avoid circular dependencies
+export type { 
+  SmartPlug, 
+  DeviceAction, 
+  Protocol, 
+  DeviceDiscoveryResult, 
+  DeviceStatus, 
+  PowerReading 
+} from './Device';
+export type { 
+  EnergyConsumption, 
+  EnergyAnalytics, 
+  CostAnalysis, 
+  TimePeriod, 
+  RealTimeEnergyData 
+} from './Energy';

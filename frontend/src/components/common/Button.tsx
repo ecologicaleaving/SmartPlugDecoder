@@ -1,6 +1,6 @@
 import React from 'react';
 import { Loader2 } from 'lucide-react';
-import { BaseComponentProps } from '../../types';
+import type { BaseComponentProps } from '../../types/Component';
 
 interface ButtonProps extends BaseComponentProps {
   variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'outline';

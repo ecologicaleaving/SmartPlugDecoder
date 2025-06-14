@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
-import { BaseComponentProps } from '../../types';
+import type { BaseComponentProps } from '../../types/Component';
 
 interface DashboardProps extends BaseComponentProps {
   children: React.ReactNode;

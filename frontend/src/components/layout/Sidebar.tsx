@@ -7,7 +7,7 @@ import {
   Plus,
   X
 } from 'lucide-react';
-import { BaseComponentProps } from '../../types';
+import type { BaseComponentProps } from '../../types/Component';
 
 interface SidebarProps extends BaseComponentProps {
   isOpen: boolean;
@@ -50,7 +50,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="flex items-center justify-between h-16 px-4 border-b border-gray-200">
         <div className="flex items-center">
           <div className="flex-shrink-0">
-            <div className="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
               <Zap className="w-5 h-5 text-white" />
             </div>
           </div>
@@ -73,7 +73,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
+      <nav className="flex-1 px-4 py-4 space-y-2 overflow-y-auto">
         {navigation.map((item) => {
           const Icon = item.icon;
           return (
@@ -82,10 +82,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
               href={item.href}
               className={`
                 group flex items-center px-3 py-2 text-sm font-medium rounded-lg
-                transition-colors duration-200
+                transition-colors duration-200 w-full
                 ${
                   item.current
-                    ? 'bg-primary-50 text-primary-700 border-r-2 border-primary-700'
+                    ? 'bg-blue-50 text-blue-700 border-r-2 border-blue-700'
                     : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
                 }
               `}
@@ -100,7 +100,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   mr-3 flex-shrink-0 h-5 w-5
                   ${
                     item.current
-                      ? 'text-primary-600'
+                      ? 'text-blue-600'
                       : 'text-gray-400 group-hover:text-gray-500'
                   }
                 `}
@@ -109,7 +109,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               
               {/* Badge */}
               {item.badge && (
-                <span className="ml-2 px-2 py-0.5 text-xs bg-primary-100 text-primary-800 rounded-full">
+                <span className="ml-2 px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded-full font-medium">
                   {item.badge}
                 </span>
               )}

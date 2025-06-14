@@ -10,7 +10,7 @@ import {
   Battery,
   BatteryLow
 } from 'lucide-react';
-import { BaseComponentProps } from '../../types';
+import type { BaseComponentProps } from '../../types/Component';
 
 interface HeaderProps extends BaseComponentProps {
   onMenuClick: () => void;

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { X, CheckCircle, XCircle, AlertTriangle, Info } from 'lucide-react';
-import { ToastNotification, ToastAction } from '../../types';
+import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
+import type { ToastNotification, ToastAction } from '../../types/Toast';
 
 // Toast Context
 interface ToastContextType {
@@ -86,7 +86,7 @@ const Toast: React.FC<ToastProps> = ({ toast }) => {
 
   const icons = {
     success: CheckCircle,
-    error: XCircle,
+    error: AlertCircle,
     warning: AlertTriangle,
     info: Info
   };

@@ -1,7 +1,12 @@
+// Import component types
+import type { BaseComponentProps } from './Component';
+
 // Re-export all types for easy importing
 export * from './Device';
 export * from './Energy';
 export * from './Api';
+export * from './Modal';
+export * from './Toast';
 
 // Additional common types
 export interface LoadingState {
@@ -13,15 +18,8 @@ export interface AsyncState<T> extends LoadingState {
   data?: T | null;
 }
 
-export interface ComponentProps {
-  className?: string;
-  children?: React.ReactNode;
-}
-
-export interface BaseComponentProps extends ComponentProps {
-  id?: string;
-  testId?: string;
-}
+// Re-export component types
+export type { BaseComponentProps } from './Component';
 
 // Theme types
 export interface Theme {
@@ -199,24 +197,6 @@ export enum ChartType {
   SCATTER = 'scatter',
 }
 
-// Modal types
-export interface ModalProps extends BaseComponentProps {
-  isOpen: boolean;
-  onClose: () => void;
-  title?: string;
-  size?: ModalSize;
-  closeOnOverlayClick?: boolean;
-  closeOnEscape?: boolean;
-}
-
-export enum ModalSize {
-  SMALL = 'sm',
-  MEDIUM = 'md',
-  LARGE = 'lg',
-  EXTRA_LARGE = 'xl',
-  FULL = 'full',
-}
-
 // Table types
 export interface TableColumn<T = any> {
   key: string;
@@ -256,23 +236,6 @@ export interface TableSelection<T> {
   selectedItems: T[];
   onSelectionChange: (selectedItems: T[]) => void;
   getItemId: (item: T) => string;
-}
-
-// Notification types
-export interface ToastNotification {
-  id: string;
-  type: 'success' | 'error' | 'warning' | 'info';
-  title: string;
-  message?: string;
-  duration?: number;
-  persistent?: boolean;
-  actions?: ToastAction[];
-}
-
-export interface ToastAction {
-  label: string;
-  action: () => void;
-  style?: 'primary' | 'secondary';
 }
 
 // Route types

@@ -1,70 +1,4 @@
-export interface SmartPlug {
-  id: string;
-  name: string;
-  room: string;
-  manufacturer: string;
-  model: string;
-  firmwareVersion: string;
-  ipAddress: string;
-  macAddress: string;
-  isOnline: boolean;
-  isOn: boolean;
-  lastSeen: Date;
-  capabilities: DeviceCapabilities;
-  powerReading?: PowerReading;
-}
-
-export interface DeviceCapabilities {
-  hasPowerMonitoring: boolean;
-  hasScheduling: boolean;
-  hasDimming: boolean;
-  hasEnergyMeter: boolean;
-  maxPower: number; // in watts
-  supportedProtocols: Protocol[];
-}
-
-export interface PowerReading {
-  timestamp: Date;
-  voltage: number; // in volts
-  current: number; // in amperes
-  power: number; // in watts
-  frequency: number; // in hertz
-  powerFactor: number;
-  totalEnergy: number; // in kWh
-}
-
-export interface DeviceStatus {
-  deviceId: string;
-  isOnline: boolean;
-  isOn: boolean;
-  lastUpdate: Date;
-  errorMessage?: string;
-}
-
-export interface DeviceGroup {
-  id: string;
-  name: string;
-  description?: string;
-  deviceIds: string[];
-  room?: string;
-  isOn: boolean; // true if any device in group is on
-  totalPower: number; // sum of all devices' power consumption
-}
-
-export interface DeviceSchedule {
-  id: string;
-  deviceId: string;
-  name: string;
-  isEnabled: boolean;
-  scheduleType: ScheduleType;
-  startTime: string; // HH:MM format
-  endTime?: string; // HH:MM format
-  days: DayOfWeek[];
-  action: DeviceAction;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
+// Enums first (no dependencies)
 export enum Protocol {
   WIFI = 'wifi',
   ZIGBEE = 'zigbee',
@@ -104,6 +38,75 @@ export enum DeviceConnectionState {
   DISCONNECTED = 'disconnected',
   ERROR = 'error',
   UNKNOWN = 'unknown',
+}
+
+// Basic interfaces (minimal dependencies)
+export interface PowerReading {
+  timestamp: Date;
+  voltage: number; // in volts
+  current: number; // in amperes
+  power: number; // in watts
+  frequency: number; // in hertz
+  powerFactor: number;
+  totalEnergy: number; // in kWh
+}
+
+export interface DeviceCapabilities {
+  hasPowerMonitoring: boolean;
+  hasScheduling: boolean;
+  hasDimming: boolean;
+  hasEnergyMeter: boolean;
+  maxPower: number; // in watts
+  supportedProtocols: Protocol[];
+}
+
+// Complex interfaces (dependent on above)
+export interface SmartPlug {
+  id: string;
+  name: string;
+  room: string;
+  manufacturer: string;
+  model: string;
+  firmwareVersion: string;
+  ipAddress: string;
+  macAddress: string;
+  isOnline: boolean;
+  isOn: boolean;
+  lastSeen: Date;
+  capabilities: DeviceCapabilities;
+  powerReading?: PowerReading;
+}
+
+export interface DeviceStatus {
+  deviceId: string;
+  isOnline: boolean;
+  isOn: boolean;
+  lastUpdate: Date;
+  errorMessage?: string;
+}
+
+export interface DeviceGroup {
+  id: string;
+  name: string;
+  description?: string;
+  deviceIds: string[];
+  room?: string;
+  isOn: boolean; // true if any device in group is on
+  totalPower: number; // sum of all devices' power consumption
+}
+
+export interface DeviceSchedule {
+  id: string;
+  deviceId: string;
+  name: string;
+  isEnabled: boolean;
+  scheduleType: ScheduleType;
+  startTime: string; // HH:MM format
+  endTime?: string; // HH:MM format
+  days: DayOfWeek[];
+  action: DeviceAction;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface DeviceDiscoveryResult {
