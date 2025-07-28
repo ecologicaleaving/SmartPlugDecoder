@@ -1,341 +1,276 @@
 import { EventEmitter } from 'events';
-import dgram from 'dgram';
-import { DiscoveredDevice, DiscoveryOptions, DeviceCapabilities } from '../types';
-import { logger } from '../utils/logger';
+import { Client as SSDPClient } from 'node-ssdp';
+import logger from '@/utils/logger';
+import {
+  DiscoveredDevice,
+  DeviceProtocol,
+  DeviceType,
+  DiscoveryRequest,
+  DeviceCapabilities,
+} from '@/types';
 
 export class NetworkScanner extends EventEmitter {
-  private isScanning = false;
-  private scanTimeout?: NodeJS.Timeout;
-  private discoveredDevices = new Map<string, DiscoveredDevice>();
+  private ssdpClient: SSDPClient;
+  private scanTimeout: number = 10000; // 10 seconds default
+  private isScanning: boolean = false;
+  private discoveredDevices: Map<string, DiscoveredDevice> = new Map();
 
   constructor() {
     super();
-    this.setMaxListeners(50); // Increase listener limit for multiple scans
+    this.ssdpClient = new SSDPClient();
+    this.setupSSDPListeners();
   }
 
-  async startScan(options: DiscoveryOptions = {}): Promise<DiscoveredDevice[]> {
+  private setupSSDPListeners(): void {
+    this.ssdpClient.on('response', (headers, statusCode, rinfo) => {
+      try {
+        const device = this.parseUPnPDevice(headers, rinfo);
+        if (device) {
+          this.addDiscoveredDevice(device);
+        }
+      } catch (error) {
+        logger.warn(`Failed to parse UPnP device: ${error}`);
+      }
+    });
+
+    this.ssdpClient.on('error', (error) => {
+      logger.error(`SSDP Client error: ${error}`);
+      this.emit('error', error);
+    });
+  }
+
+  private parseUPnPDevice(headers: any, rinfo: any): DiscoveredDevice | null {
+    const location = headers.LOCATION || headers.location;
+    const usn = headers.USN || headers.usn;
+    const server = headers.SERVER || headers.server;
+
+    if (!location || !rinfo.address) {
+      return null;
+    }
+
+    // Check if this looks like a smart plug or IoT device
+    const deviceInfo = this.analyzeUPnPDevice(headers, server);
+    if (!deviceInfo.isSmartDevice) {
+      return null;
+    }
+
+    const deviceId = this.generateDeviceId(rinfo.address, usn);
+    
+    return {
+      id: deviceId,
+      name: deviceInfo.name || `UPnP Device (${rinfo.address})`,
+      ipAddress: rinfo.address,
+      deviceType: deviceInfo.deviceType,
+      protocol: DeviceProtocol.UPNP,
+      manufacturer: deviceInfo.manufacturer,
+      model: deviceInfo.model,
+      isSupported: deviceInfo.isSupported,
+      capabilities: deviceInfo.capabilities,
+      rawData: {
+        headers,
+        location,
+        usn,
+        server,
+        port: rinfo.port,
+      },
+    };
+  }
+
+  private analyzeUPnPDevice(headers: any, server?: string): {
+    isSmartDevice: boolean;
+    name?: string;
+    manufacturer?: string;
+    model?: string;
+    deviceType: DeviceType;
+    isSupported: boolean;
+    capabilities: Partial<DeviceCapabilities>;
+  } {
+    const st = headers.ST || headers.st || '';
+    const usn = headers.USN || headers.usn || '';
+    const serverLower = (server || '').toLowerCase();
+
+    // Known smart plug patterns
+    const smartPlugPatterns = [
+      'smart',
+      'plug',
+      'switch',
+      'outlet',
+      'power',
+      'energy',
+      'tuya',
+      'gosund',
+      'kasa',
+      'tp-link',
+      'xiaomi',
+      'shelly',
+      'tasmota',
+    ];
+
+    const isSmartDevice = smartPlugPatterns.some(pattern => 
+      serverLower.includes(pattern) || 
+      st.toLowerCase().includes(pattern) ||
+      usn.toLowerCase().includes(pattern)
+    );
+
+    // Extract manufacturer info
+    let manufacturer = 'Unknown';
+    let model: string | undefined;
+    let isSupported = false;
+    let deviceType = DeviceType.UNKNOWN;
+
+    if (serverLower.includes('tuya')) {
+      manufacturer = 'Tuya';
+      isSupported = true;
+      deviceType = DeviceType.SMART_PLUG;
+    } else if (serverLower.includes('kasa') || serverLower.includes('tp-link')) {
+      manufacturer = 'TP-Link';
+      model = 'Kasa';
+      isSupported = true;
+      deviceType = DeviceType.SMART_PLUG;
+    } else if (serverLower.includes('gosund')) {
+      manufacturer = 'Gosund';
+      isSupported = true;
+      deviceType = DeviceType.SMART_PLUG;
+    } else if (serverLower.includes('shelly')) {
+      manufacturer = 'Shelly';
+      isSupported = true;
+      deviceType = DeviceType.SMART_PLUG;
+    } else if (serverLower.includes('tasmota')) {
+      manufacturer = 'Tasmota';
+      isSupported = true;
+      deviceType = DeviceType.SMART_PLUG;
+    } else if (isSmartDevice) {
+      deviceType = DeviceType.SMART_PLUG;
+      isSupported = false; // Unknown but potentially supportable
+    }
+
+    const capabilities: Partial<DeviceCapabilities> = {
+      hasPowerMonitoring: isSupported,
+      hasScheduling: isSupported,
+      hasDimming: false,
+      hasEnergyMeter: isSupported,
+      supportedCommands: isSupported ? ['power_on', 'power_off', 'get_status'] : [],
+    };
+
+    return {
+      isSmartDevice,
+      manufacturer,
+      model,
+      deviceType,
+      isSupported,
+      capabilities,
+    };
+  }
+
+  private generateDeviceId(ipAddress: string, usn?: string): string {
+    const base = usn || ipAddress;
+    return Buffer.from(base).toString('base64').substring(0, 16);
+  }
+
+  private addDiscoveredDevice(device: DiscoveredDevice): void {
+    const existingDevice = this.discoveredDevices.get(device.id);
+    
+    if (!existingDevice) {
+      this.discoveredDevices.set(device.id, device);
+      logger.info(`Discovered new device: ${device.name} (${device.ipAddress})`);
+      this.emit('deviceDiscovered', device);
+    }
+  }
+
+  public async scanNetwork(request: DiscoveryRequest = {}): Promise<DiscoveredDevice[]> {
     if (this.isScanning) {
       throw new Error('Scan already in progress');
     }
 
     const {
-      timeout = 5000,
-      protocols = ['upnp', 'mdns'],
-      localNetworkOnly = true,
-      includeUnsupported = false
-    } = options;
+      protocols = [DeviceProtocol.UPNP],
+      timeout = this.scanTimeout,
+      includeOffline = false,
+    } = request;
 
-    logger.info('Starting network device scan', { timeout, protocols, localNetworkOnly });
-    
     this.isScanning = true;
     this.discoveredDevices.clear();
-    this.emit('scanStarted');
+
+    logger.info(`Starting network scan (timeout: ${timeout}ms, protocols: ${protocols.join(', ')})`);
 
     try {
-      // Start different discovery protocols in parallel
       const scanPromises: Promise<void>[] = [];
 
-      if (protocols.includes('upnp')) {
+      // UPnP/SSDP scan
+      if (protocols.includes(DeviceProtocol.UPNP)) {
         scanPromises.push(this.scanUPnP(timeout));
       }
 
-      if (protocols.includes('mdns')) {
-        scanPromises.push(this.scanMDNS(timeout));
+      // Future: Add other protocol scans here
+      if (protocols.includes(DeviceProtocol.TUYA)) {
+        scanPromises.push(this.scanTuya(timeout));
       }
 
-      // Add simulated devices for development
-      if (process.env.NODE_ENV === 'development') {
-        scanPromises.push(this.addMockDevices());
-      }
-
-      // Wait for all scans to complete or timeout
+      // Wait for all scans to complete
       await Promise.allSettled(scanPromises);
 
-      // Filter results based on options
       const devices = Array.from(this.discoveredDevices.values());
-      const filteredDevices = includeUnsupported 
-        ? devices 
-        : devices.filter(d => d.isSupported);
+      logger.info(`Network scan completed. Found ${devices.length} devices.`);
 
-      logger.info(`Network scan completed. Found ${devices.length} devices (${filteredDevices.length} supported)`);
-      this.emit('scanCompleted', filteredDevices);
-
-      return filteredDevices;
-
+      return devices;
     } catch (error) {
-      logger.error('Network scan failed:', error);
-      this.emit('scanError', error);
+      logger.error(`Network scan failed: ${error}`);
       throw error;
     } finally {
       this.isScanning = false;
-      if (this.scanTimeout) {
-        clearTimeout(this.scanTimeout);
-      }
     }
   }
 
   private async scanUPnP(timeout: number): Promise<void> {
-    return new Promise((resolve) => {
-      logger.debug('Starting UPnP/SSDP discovery');
-      
-      const socket = dgram.createSocket('udp4');
-      const multicastAddress = '239.255.255.250';
-      const multicastPort = 1900;
-      
-      // UPnP search message
-      const searchMessage = [
-        'M-SEARCH * HTTP/1.1',
-        'HOST: 239.255.255.250:1900',
-        'MAN: "ssdp:discover"',
-        'ST: upnp:rootdevice',
-        'MX: 3',
-        '',
-        ''
-      ].join('\r\n');
-
-      socket.on('message', (msg, rinfo) => {
-        this.parseUPnPResponse(msg.toString(), rinfo.address);
-      });
-
-      socket.on('error', (err) => {
-        logger.error('UPnP socket error:', err);
-      });
-
-      // Send UPnP discovery message
-      socket.send(searchMessage, multicastPort, multicastAddress, (err) => {
-        if (err) {
-          logger.error('Failed to send UPnP discovery message:', err);
-        } else {
-          logger.debug('UPnP discovery message sent');
-        }
-      });
-
-      // Stop UPnP scan after timeout
-      setTimeout(() => {
-        socket.close();
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.ssdpClient.stop();
         resolve();
       }, timeout);
-    });
-  }
 
-  private async scanMDNS(timeout: number): Promise<void> {
-    return new Promise((resolve) => {
-      logger.debug('Starting mDNS discovery');
-      
-      // Simulate mDNS discovery for now
-      // In a real implementation, we would use a library like 'bonjour-service'
-      
-      setTimeout(() => {
-        // Add mock mDNS devices
-        this.addDevice({
-          id: 'mdns-device-1',
-          name: 'Smart Plug mDNS',
-          ip: '192.168.1.105',
-          port: 80,
-          type: 'Smart Plug',
-          protocol: 'mdns',
-          manufacturer: 'Generic',
-          model: 'mDNS-SP1',
-          capabilities: this.getDefaultCapabilities(),
-          isSupported: true,
-          lastSeen: new Date()
-        });
+      try {
+        // Search for UPnP devices
+        this.ssdpClient.search('upnp:rootdevice');
+        this.ssdpClient.search('ssdp:all');
         
-        resolve();
-      }, 1000);
+        // Also search for specific device types
+        this.ssdpClient.search('urn:schemas-upnp-org:device:Basic:1');
+        this.ssdpClient.search('urn:schemas-upnp-org:device:BinaryLight:1');
+      } catch (error) {
+        clearTimeout(timer);
+        reject(error);
+      }
     });
   }
 
-  private async addMockDevices(): Promise<void> {
-    logger.debug('Adding mock devices for development');
-    
-    const mockDevices: Omit<DiscoveredDevice, 'lastSeen'>[] = [
-      {
-        id: 'mock-tuya-1',
-        name: 'Tuya Smart Plug',
-        ip: '192.168.1.101',
-        port: 6668,
-        type: 'Smart Plug',
-        protocol: 'tuya',
-        manufacturer: 'Gosund',
-        model: 'SP1',
-        capabilities: {
-          hasPowerControl: true,
-          hasPowerMonitoring: true,
-          hasScheduling: true,
-          hasDimming: false,
-          hasEnergyMeter: true,
-          maxPower: 3500,
-          supportedCommands: ['turn_on', 'turn_off', 'get_status', 'get_power']
-        },
-        isSupported: true
-      },
-      {
-        id: 'mock-upnp-1',
-        name: 'TP-Link Kasa',
-        ip: '192.168.1.102',
-        port: 9999,
-        type: 'Smart Plug',
-        protocol: 'upnp',
-        manufacturer: 'TP-Link',
-        model: 'HS110',
-        capabilities: {
-          hasPowerControl: true,
-          hasPowerMonitoring: true,
-          hasScheduling: true,
-          hasDimming: false,
-          hasEnergyMeter: true,
-          maxPower: 2200,
-          supportedCommands: ['turn_on', 'turn_off', 'get_status', 'get_power']
-        },
-        isSupported: true
-      },
-      {
-        id: 'mock-unknown-1',
-        name: 'Unknown Device',
-        ip: '192.168.1.103',
-        port: 80,
-        type: 'Unknown',
-        protocol: 'unknown',
-        manufacturer: 'Unknown',
-        capabilities: this.getDefaultCapabilities(),
-        isSupported: false
-      }
-    ];
-
-    // Add devices with staggered timing to simulate real discovery
-    for (let i = 0; i < mockDevices.length; i++) {
-      setTimeout(() => {
-        this.addDevice({
-          ...mockDevices[i],
-          lastSeen: new Date()
-        });
-      }, i * 800);
-    }
+  private async scanTuya(timeout: number): Promise<void> {
+    // TODO: Implement Tuya local device discovery
+    // This would require UDP broadcast to find Tuya devices on the network
+    logger.info('Tuya local discovery not yet implemented');
+    return Promise.resolve();
   }
 
-  private parseUPnPResponse(response: string, ip: string): void {
-    // Basic UPnP response parsing
-    const lines = response.split('\r\n');
-    const headers: Record<string, string> = {};
-    
-    for (const line of lines) {
-      const colonIndex = line.indexOf(':');
-      if (colonIndex > 0) {
-        const key = line.substring(0, colonIndex).toLowerCase().trim();
-        const value = line.substring(colonIndex + 1).trim();
-        headers[key] = value;
-      }
-    }
-
-    // Check if this might be a smart plug
-    const server = headers['server'] || '';
-    const location = headers['location'] || '';
-    
-    if (this.isLikelySmartPlug(server, location)) {
-      const device: DiscoveredDevice = {
-        id: `upnp-${ip}`,
-        name: this.extractDeviceName(server) || 'UPnP Device',
-        ip,
-        port: this.extractPortFromLocation(location) || 80,
-        type: 'Smart Plug',
-        protocol: 'upnp',
-        manufacturer: this.extractManufacturer(server) || 'Unknown',
-        capabilities: this.getDefaultCapabilities(),
-        isSupported: true,
-        lastSeen: new Date()
-      };
-
-      this.addDevice(device);
-    }
-  }
-
-  private isLikelySmartPlug(server: string, location: string): boolean {
-    const smartPlugIndicators = [
-      'plug', 'switch', 'outlet', 'power', 'energy',
-      'kasa', 'tuya', 'smartlife', 'gosund', 'teckin',
-      'upnp/1.0', 'rootdevice'
-    ];
-    
-    const text = `${server} ${location}`.toLowerCase();
-    return smartPlugIndicators.some(indicator => text.includes(indicator));
-  }
-
-  private extractDeviceName(server: string): string | null {
-    // Extract device name from server string
-    const match = server.match(/^([^\/]+)/);
-    return match ? match[1].trim() : null;
-  }
-
-  private extractManufacturer(server: string): string | null {
-    // Extract manufacturer from server string
-    const manufacturers = ['tp-link', 'kasa', 'tuya', 'gosund', 'teckin', 'amazon'];
-    const serverLower = server.toLowerCase();
-    
-    for (const manufacturer of manufacturers) {
-      if (serverLower.includes(manufacturer)) {
-        return manufacturer.split('-').map(word => 
-          word.charAt(0).toUpperCase() + word.slice(1)
-        ).join('-');
-      }
-    }
-    
-    return null;
-  }
-
-  private extractPortFromLocation(location: string): number | null {
-    try {
-      const url = new URL(location);
-      return parseInt(url.port) || (url.protocol === 'https:' ? 443 : 80);
-    } catch {
-      return null;
-    }
-  }
-
-  private getDefaultCapabilities(): DeviceCapabilities {
-    return {
-      hasPowerControl: true,
-      hasPowerMonitoring: false,
-      hasScheduling: false,
-      hasDimming: false,
-      hasEnergyMeter: false,
-      maxPower: 1000,
-      supportedCommands: ['turn_on', 'turn_off', 'get_status']
-    };
-  }
-
-  private addDevice(device: DiscoveredDevice): void {
-    // Avoid duplicates based on IP address
-    const existingDevice = Array.from(this.discoveredDevices.values())
-      .find(d => d.ip === device.ip);
-    
-    if (!existingDevice) {
-      this.discoveredDevices.set(device.id, device);
-      logger.debug(`Discovered device: ${device.name} (${device.ip}) - ${device.protocol}`);
-      this.emit('deviceDiscovered', device);
-    } else {
-      // Update last seen time for existing device
-      existingDevice.lastSeen = new Date();
-    }
-  }
-
-  stopScan(): void {
+  public stopScan(): void {
     if (this.isScanning) {
-      logger.info('Stopping network scan');
+      this.ssdpClient.stop();
       this.isScanning = false;
-      if (this.scanTimeout) {
-        clearTimeout(this.scanTimeout);
-      }
-      this.emit('scanStopped');
+      logger.info('Network scan stopped');
     }
   }
 
-  getDiscoveredDevices(): DiscoveredDevice[] {
+  public getDiscoveredDevices(): DiscoveredDevice[] {
     return Array.from(this.discoveredDevices.values());
   }
 
-  clearDiscoveredDevices(): void {
+  public clearDiscoveredDevices(): void {
     this.discoveredDevices.clear();
-    this.emit('devicesCleared');
+  }
+
+  public destroy(): void {
+    this.stopScan();
+    this.removeAllListeners();
+    this.discoveredDevices.clear();
   }
 }
+
+export default NetworkScanner;

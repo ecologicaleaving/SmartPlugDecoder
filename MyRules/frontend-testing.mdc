@@ -1,0 +1,116 @@
+---
+description: Guidelines for implementing frontend tests after each function implementation
+globs: src/**/*.tsx, src/**/*.ts, src/**/*.jsx, src/**/*.js
+alwaysApply: true
+---
+# Frontend Testing Requirements
+
+- **Test After Each Function Implementation**
+  - Each function implementation must be accompanied by appropriate frontend tests
+  - Tests should be written immediately after implementing the function
+  - No function should be considered complete until its tests pass
+
+- **Continuous Testing Cadence**
+  - Write tests immediately as you develop code, not just at the end
+  - Run affected tests after each significant code change
+  - Configure pre-commit hooks to run tests automatically before commits
+  - Follow the Debug-Test Loop pattern: when fixing bugs, immediately add test cases that would have caught them
+
+- **Strategic Debugging Approach**
+  - Fix bugs as soon as they're discovered rather than accumulating them
+  - Isolate the problem to the smallest possible component before debugging
+  - Use proper debugging tools (React DevTools, browser DevTools) rather than console.log for complex issues
+  - After fixing, add regression tests that would detect similar problems in the future
+
+- **Testing Structure**
+  ```typescript
+  // ✅ DO: Test component/function behavior thoroughly
+  describe('ComponentName', () => {
+    it('should render correctly with default props', () => {
+      // Test initial rendering
+    });
+    
+    it('should handle user interactions properly', () => {
+      // Test interactions (clicks, inputs, etc.)
+    });
+    
+    it('should handle edge cases appropriately', () => {
+      // Test with edge case inputs/situations
+    });
+  });
+  
+  // ❌ DON'T: Write shallow tests that don't verify behavior
+  describe('ComponentName', () => {
+    it('renders', () => {
+      // Only checking that it renders without error is insufficient
+    });
+  });
+  ```
+
+- **React Component Testing Best Practices**
+  - Test from a user perspective, focusing on what users see and interact with
+  - Use React Testing Library's user-event for simulating user interactions
+  - Test both initial rendering and state changes after interactions
+  - Verify accessibility concerns (ARIA roles, keyboard navigation)
+  - Don't test implementation details, test behavior
+
+- **Utility/Hook Function Testing**
+  - Implement unit tests for all utility functions and custom hooks
+  - Test the full range of expected inputs and outputs
+  - Include edge cases and error handling
+  - For hooks, use the renderHook utility from @testing-library/react-hooks
+
+- **Testing Coverage Requirements**
+  - All components should have at least 80% code coverage
+  - All user interactions should be tested
+  - All conditional rendering branches should be verified
+  - Error states and loading states should be tested
+
+- **Test File Organization**
+  - Place test files adjacent to the implementation files
+  - Use `.test.tsx` or `.spec.tsx` for test file naming
+  - Group related tests in describe blocks
+  - Use clear test names that describe expected behavior
+
+- **Mock Usage Guidelines**
+  - Use Mock Service Worker (MSW) for API call mocking
+  - Create reusable mock data in separate fixture files
+  - Don't over-mock - prefer testing real behavior when possible
+
+- **Debugging Tools and Patterns**
+  - Use React DevTools to inspect component props, state and context
+  - Use browser DevTools for network requests and performance analysis
+  - Set breakpoints rather than littering code with console.log statements
+  - For component rendering issues, check props, context, and state flow
+  - For state management bugs, trace state updates through component hierarchy
+
+- **Integration with Development Workflow**
+  - Run relevant tests immediately after implementing a function
+  - Fix any failing tests before moving on to the next function
+  - Use `task-master update-subtask` to document testing completion
+  - Update task status only after tests are passing
+  - When working on failing tests, create minimal reproduction cases
+  - Document test strategies and patterns in task details
+
+---
+description: Robust pattern for ambiguous queries in React Testing Library
+globs: packages/frontend/src/components/**/*.test.tsx
+alwaysApply: true
+---
+
+- **Always scope queries with `within` or use `data-testid` for elements that appear in multiple places**
+  - When the same text appears in both a list and a detail view, use `within(container).getByText(...)` to avoid ambiguity
+  - Add `data-testid` to containers (e.g., detail panels) for robust selection
+  - Example:
+  ```typescript
+  // ✅ DO: Scope to the session list
+  const sessionList = screen.getByRole('listbox', { name: 'Session List' });
+  expect(within(sessionList).getByText('Morning Session')).toBeInTheDocument();
+
+  // ✅ DO: Scope to the detail view
+  const detailView = screen.getByTestId('session-detail');
+  expect(within(detailView).getByText('Morning Session')).toBeInTheDocument();
+
+  // ❌ DON'T: Use screen.getByText('Morning Session') when the text appears in multiple places
+  ```
+  - Reference: See AgendaPanel tests for implementation.

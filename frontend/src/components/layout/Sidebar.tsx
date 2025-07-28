@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { 
   Home, 
   Zap, 
@@ -18,16 +19,15 @@ interface NavigationItem {
   name: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
-  current: boolean;
   badge?: string | number;
 }
 
 const navigation: NavigationItem[] = [
-  { name: 'Dashboard', href: '/', icon: Home, current: true },
-  { name: 'Devices', href: '/devices', icon: Zap, current: false, badge: 5 },
-  { name: 'Energy Analytics', href: '/analytics', icon: BarChart3, current: false },
-  { name: 'Add Device', href: '/devices/add', icon: Plus, current: false },
-  { name: 'Settings', href: '/settings', icon: Settings, current: false },
+  { name: 'Dashboard', href: '/', icon: Home },
+  { name: 'Devices', href: '/devices', icon: Zap, badge: 5 },
+  { name: 'Energy Analytics', href: '/analytics', icon: BarChart3 },
+  { name: 'Add Device', href: '/devices/add', icon: Plus },
+  { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({ 
@@ -36,6 +36,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   className = '',
   ...props 
 }) => {
+  const location = useLocation();
   return (
     <div 
       className={`
@@ -76,30 +77,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <nav className="flex-1 px-4 py-4 space-y-2 overflow-y-auto">
         {navigation.map((item) => {
           const Icon = item.icon;
+          const isActive = location.pathname === item.href;
+          
           return (
-            <a
+            <Link
               key={item.name}
-              href={item.href}
+              to={item.href}
               className={`
                 group flex items-center px-3 py-2 text-sm font-medium rounded-lg
                 transition-colors duration-200 w-full
                 ${
-                  item.current
+                  isActive
                     ? 'bg-blue-900 text-blue-400 border-r-2 border-blue-400'
                     : 'text-slate-300 hover:text-white hover:bg-slate-700'
                 }
               `}
-              onClick={(e) => {
-                e.preventDefault();
-                // Handle navigation here
-                console.log(`Navigate to ${item.href}`);
-              }}
+              onClick={onClose} // Close mobile menu when navigating
             >
               <Icon
                 className={`
                   mr-3 flex-shrink-0 h-5 w-5
                   ${
-                    item.current
+                    isActive
                       ? 'text-blue-400'
                       : 'text-slate-400 group-hover:text-slate-300'
                   }
@@ -113,7 +112,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   {item.badge}
                 </span>
               )}
-            </a>
+            </Link>
           );
         })}
       </nav>

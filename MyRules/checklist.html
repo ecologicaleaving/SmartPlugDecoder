@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Todo List App Semplice</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f7f9;
+            color: #333;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            background-color: #ffffff;
+            padding: 25px 30px;
+            border-radius: 10px;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 25px;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #3498db;
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-size: 1.4em;
+        }
+        h3 {
+            color: #2980b9;
+            font-size: 1.2em;
+        }
+        ul.checklist {
+            list-style-type: none;
+            padding-left: 0;
+        }
+        ul.checklist li {
+            margin-bottom: 12px;
+            padding: 8px 0;
+            display: flex;
+            align-items: center;
+            border-bottom: 1px solid #ecf0f1;
+            transition: background-color 0.2s ease-in-out;
+        }
+        ul.checklist li:last-child {
+            border-bottom: none;
+        }
+        ul.checklist li:hover {
+            background-color: #f9f9f9;
+        }
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            margin-right: 12px;
+            cursor: pointer;
+            accent-color: #3498db; /* Modern way to color checkbox */
+            vertical-align: middle;
+        }
+        label {
+            cursor: pointer;
+            flex-grow: 1;
+            transition: color 0.3s ease, text-decoration 0.3s ease;
+            font-size: 0.95em;
+        }
+        label.completed {
+            text-decoration: line-through;
+            color: #95a5a6;
+        }
+        .instructions {
+            margin-top: 35px;
+            padding: 20px;
+            background-color: #e9f5ff;
+            border-left: 5px solid #3498db;
+            border-radius: 5px;
+        }
+        .instructions p {
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Session Management Checklist</h1>
+
+        <h2>1. Session List</h2>
+        <ul class="checklist">
+            <li><input type="checkbox" id="chk-1-1"><label for="chk-1-1">View all sessions in the main agenda/session list.</label></li>
+            <li><input type="checkbox" id="chk-1-2"><label for="chk-1-2">See session details by selecting a session (title, date, status, agenda items, etc.).</label></li>
+        </ul>
+
+        <h2>2. Session Creation</h2>
+        <ul class="checklist">
+            <li><input type="checkbox" id="chk-2-1"><label for="chk-2-1">Open the “Create Session” dialog (button or UI element).</label></li>
+            <li><input type="checkbox" id="chk-2-2"><label for="chk-2-2">Create a new session (fill in title, date, optional passwords).</label></li>
+            <li><input type="checkbox" id="chk-2-3"><label for="chk-2-3">See the new session appear in the session list immediately.</label></li>
+        </ul>
+
+        <h2>3. Session Selection</h2>
+        <ul class="checklist">
+            <li><input type="checkbox" id="chk-3-1"><label for="chk-3-1">Select a session from the list.</label></li>
+            <li><input type="checkbox" id="chk-3-2"><label for="chk-3-2">See the session’s details in the detail panel or main view.</label></li>
+        </ul>
+
+        <h2>4. Session Editing</h2>
+        <ul class="checklist">
+            <li><input type="checkbox" id="chk-4-1"><label for="chk-4-1">Open the “Edit Session” dialog for a selected session.</label></li>
+            <li><input type="checkbox" id="chk-4-2"><label for="chk-4-2">Edit session details (title, date, etc.).</label></li>
+            <li><input type="checkbox" id="chk-4-3"><label for="chk-4-3">Save changes and see them reflected in the session list and detail view.</label></li>
+        </ul>
+
+        <h2>5. Session Deletion</h2>
+        <ul class="checklist">
+            <li><input type="checkbox" id="chk-5-1"><label for="chk-5-1">Open the “Delete Session” confirmation for a selected session.</label></li>
+            <li><input type="checkbox" id="chk-5-2"><label for="chk-5-2">Delete a session and confirm it disappears from the list.</label></li>
+        </ul>
+
+        <h2>6. Agenda Items (within a session)</h2>
+        <ul class="checklist">
+            <li><input type="checkbox" id="chk-6-1"><label for="chk-6-1">View agenda items for a session in the detail view.</label></li>
+            <li><input type="checkbox" id="chk-6-2"><label for="chk-6-2">Add a new agenda item to a session.</label></li>
+            <li><input type="checkbox" id="chk-6-3"><label for="chk-6-3">Edit an agenda item (title, speaker, duration, etc.).</label></li>
+            <li><input type="checkbox" id="chk-6-4"><label for="chk-6-4">Delete an agenda item from a session.</label></li>
+            <li><input type="checkbox" id="chk-6-5"><label for="chk-6-5">Reorder agenda items (if drag-and-drop is enabled).</label></li>
+        </ul>
+
+        <h2>7. Session Status</h2>
+        <ul class="checklist">
+            <li><input type="checkbox" id="chk-7-1"><label for="chk-7-1">Activate a session (set as “Active”).</label></li>
+            <li><input type="checkbox" id="chk-7-2"><label for="chk-7-2">Deactivate/complete a session (set as “Completed”).</label></li>
+            <li><input type="checkbox" id="chk-7-3"><label for="chk-7-3">See status changes reflected in the UI.</label></li>
+        </ul>
+
+        <h2>8. Agenda Item Status</h2>
+        <ul class="checklist">
+            <li><input type="checkbox" id="chk-8-1"><label for="chk-8-1">Activate an agenda item (set as “Active”).</label></li>
+            <li><input type="checkbox" id="chk-8-2"><label for="chk-8-2">Complete an agenda item (set as “Completed”).</label></li>
+            <li><input type="checkbox" id="chk-8-3"><label for="chk-8-3">See status changes reflected in the UI.</label></li>
+        </ul>
+
+        <h2>9. Real-Time Updates</h2>
+        <ul class="checklist">
+            <li><input type="checkbox" id="chk-9-1"><label for="chk-9-1">See session/agenda updates in real-time if another client or tab makes changes (WebSocket).</label></li>
+        </ul>
+
+        <h2>10. Error Handling</h2>
+        <ul class="checklist">
+            <li><input type="checkbox" id="chk-10-1"><label for="chk-10-1">See user-friendly error messages if something goes wrong (e.g., network error, invalid input).</label></li>
+        </ul>
+
+        <div class="instructions">
+            <h3>How to Test</h3>
+            <p>Go through each item above in your UI.</p>
+            <p>For each, check that the action works and the UI updates as expected.</p>
+            <p>If any action fails, note the error or unexpected behavior.</p>
+        </div>
+
+        <h2>Bonus: Test Edge Cases</h2>
+        <ul class="checklist">
+            <li><input type="checkbox" id="bonus-1"><label for="bonus-1">Try creating a session with missing required fields (should show validation error).</label></li>
+            <li><input type="checkbox" id="bonus-2"><label for="bonus-2">Try editing/deleting a session that is currently active.</label></li>
+            <li><input type="checkbox" id="bonus-3"><label for="bonus-3">Try reordering agenda items to the first/last position.</label></li>
+            <li><input type="checkbox" id="bonus-4"><label for="bonus-4">Try using the app in two tabs and see if real-time updates sync.</label></li>
+        </ul>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const checkboxes = document.querySelectorAll('input[type="checkbox"]');
+            checkboxes.forEach(function (checkbox) {
+                checkbox.addEventListener('change', function () {
+                    const label = document.querySelector(`label[for="${this.id}"]`);
+                    if (label) {
+                        if (this.checked) {
+                            label.classList.add('completed');
+                        } else {
+                            label.classList.remove('completed');
+                        }
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

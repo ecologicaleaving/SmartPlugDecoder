@@ -1,222 +1,306 @@
-import { Router } from 'express';
-import { DeviceManager } from '../services/DeviceManager';
-import { DeviceControlCommand, ApiResponse } from '../types';
-import { logger } from '../utils/logger';
+import { Router, Request, Response } from 'express';
+import { z } from 'zod';
+import { asyncHandler, createError } from '@/middleware/errorHandler';
+import logger from '@/utils/logger';
+import { 
+  Device, 
+  DeviceType, 
+  DeviceProtocol, 
+  ApiResponse,
+  DiscoveredDevice,
+  DeviceStatus,
+  DeviceCommand,
+  DeviceCommandType 
+} from '@/types';
+import { v4 as uuidv4 } from 'uuid';
 
-export const devicesRouter = Router();
+const router = Router();
 
-// GET /api/devices - Get all connected devices
-devicesRouter.get('/', (req, res) => {
-  try {
-    const deviceManager: DeviceManager = req.app.locals.deviceManager;
-    const devices = deviceManager.getConnectedDevices();
+// Temporary in-memory storage for MVP
+// In production, this would be replaced with database operations
+let devices: Device[] = [];
 
-    const response: ApiResponse = {
-      success: true,
-      data: {
-        devices,
-        count: devices.length,
-        onlineCount: devices.filter(d => d.isOnline).length
-      },
-      timestamp: new Date()
-    };
-
-    res.json(response);
-
-  } catch (error) {
-    logger.error('Failed to get connected devices:', error);
-    
-    const response: ApiResponse = {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to get devices',
-      timestamp: new Date()
-    };
-
-    res.status(500).json(response);
-  }
+// Validation schemas
+const addDeviceSchema = z.object({
+  discoveredDevice: z.object({
+    id: z.string(),
+    name: z.string(),
+    ipAddress: z.string(),
+    deviceType: z.nativeEnum(DeviceType),
+    protocol: z.nativeEnum(DeviceProtocol),
+    manufacturer: z.string().optional(),
+    model: z.string().optional(),
+    isSupported: z.boolean(),
+    capabilities: z.object({
+      hasPowerMonitoring: z.boolean().optional(),
+      hasScheduling: z.boolean().optional(),
+      hasDimming: z.boolean().optional(),
+      hasEnergyMeter: z.boolean().optional(),
+      maxPower: z.number().optional(),
+      supportedCommands: z.array(z.string()).optional(),
+    }),
+  }),
+  name: z.string().min(1),
+  room: z.string().optional(),
+  notes: z.string().optional(),
 });
+
+const deviceControlSchema = z.object({
+  command: z.object({
+    type: z.nativeEnum(DeviceCommandType),
+    value: z.any().optional(),
+    timestamp: z.string().datetime().optional(),
+  }),
+});
+
+// GET /api/devices - List all user devices
+router.get('/', asyncHandler(async (req: Request, res: Response) => {
+  // TODO: Filter by user ID when authentication is implemented
+  const userDevices = devices;
+
+  logger.info(`Retrieved ${userDevices.length} devices`);
+
+  const response: ApiResponse<Device[]> = {
+    success: true,
+    data: userDevices,
+    message: `Retrieved ${userDevices.length} devices`,
+    timestamp: new Date(),
+  };
+
+  res.json(response);
+}));
 
 // GET /api/devices/:id - Get specific device
-devicesRouter.get('/:id', (req, res) => {
-  try {
-    const deviceManager: DeviceManager = req.app.locals.deviceManager;
-    const device = deviceManager.getConnectedDevice(req.params.id);
-
-    if (!device) {
-      const response: ApiResponse = {
-        success: false,
-        error: 'Device not found',
-        timestamp: new Date()
-      };
-      return res.status(404).json(response);
-    }
-
-    const response: ApiResponse = {
-      success: true,
-      data: device,
-      timestamp: new Date()
-    };
-
-    res.json(response);
-
-  } catch (error) {
-    logger.error(`Failed to get device ${req.params.id}:`, error);
-    
-    const response: ApiResponse = {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to get device',
-      timestamp: new Date()
-    };
-
-    res.status(500).json(response);
+router.get('/:id', asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  
+  const device = devices.find(d => d.id === id);
+  
+  if (!device) {
+    throw createError('Device not found', 404);
   }
-});
 
-// POST /api/devices/connect - Connect a discovered device
-devicesRouter.post('/connect', async (req, res) => {
-  try {
-    const deviceManager: DeviceManager = req.app.locals.deviceManager;
-    const { discoveredDevice, config = {} } = req.body;
+  const response: ApiResponse<Device> = {
+    success: true,
+    data: device,
+    message: 'Device retrieved successfully',
+    timestamp: new Date(),
+  };
 
-    if (!discoveredDevice) {
-      const response: ApiResponse = {
-        success: false,
-        error: 'discoveredDevice is required',
-        timestamp: new Date()
-      };
-      return res.status(400).json(response);
-    }
+  res.json(response);
+}));
 
-    logger.info(`Connecting device via API: ${discoveredDevice.name}`);
+// POST /api/devices - Add a discovered device to user's device list
+router.post('/', asyncHandler(async (req: Request, res: Response) => {
+  const validatedRequest = addDeviceSchema.parse(req.body);
+  const { discoveredDevice, name, room, notes } = validatedRequest;
 
-    const connectedDevice = await deviceManager.connectDevice(discoveredDevice, config);
+  // Check if device already exists
+  const existingDevice = devices.find(d => 
+    d.ipAddress === discoveredDevice.ipAddress || 
+    d.macAddress === discoveredDevice.macAddress
+  );
 
-    const response: ApiResponse = {
-      success: true,
-      data: connectedDevice,
-      timestamp: new Date()
-    };
-
-    res.json(response);
-
-  } catch (error) {
-    logger.error('Failed to connect device:', error);
-    
-    const response: ApiResponse = {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to connect device',
-      timestamp: new Date()
-    };
-
-    res.status(500).json(response);
+  if (existingDevice) {
+    throw createError('Device already exists', 409);
   }
-});
 
-// POST /api/devices/:id/disconnect - Disconnect a device
-devicesRouter.post('/:id/disconnect', async (req, res) => {
-  try {
-    const deviceManager: DeviceManager = req.app.locals.deviceManager;
-    const deviceId = req.params.id;
+  // Create new device from discovered device
+  const newDevice: Device = {
+    id: uuidv4(),
+    userId: 'default-user', // TODO: Get from authenticated user
+    name,
+    room: room || 'Unknown',
+    deviceType: discoveredDevice.deviceType,
+    protocol: discoveredDevice.protocol,
+    macAddress: discoveredDevice.macAddress,
+    ipAddress: discoveredDevice.ipAddress,
+    manufacturer: discoveredDevice.manufacturer,
+    model: discoveredDevice.model,
+    isOnline: true, // Assume online since we just discovered it
+    isEnabled: true,
+    lastSeen: new Date(),
+    capabilities: {
+      hasPowerMonitoring: discoveredDevice.capabilities.hasPowerMonitoring || false,
+      hasScheduling: discoveredDevice.capabilities.hasScheduling || false,
+      hasDimming: discoveredDevice.capabilities.hasDimming || false,
+      hasEnergyMeter: discoveredDevice.capabilities.hasEnergyMeter || false,
+      maxPower: discoveredDevice.capabilities.maxPower,
+      supportedCommands: discoveredDevice.capabilities.supportedCommands || [],
+    },
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
 
-    logger.info(`Disconnecting device via API: ${deviceId}`);
+  devices.push(newDevice);
 
-    await deviceManager.disconnectDevice(deviceId);
+  logger.info(`Added new device: ${newDevice.name} (${newDevice.ipAddress})`);
 
-    const response: ApiResponse = {
-      success: true,
-      data: { message: `Device ${deviceId} disconnected` },
-      timestamp: new Date()
-    };
+  const response: ApiResponse<Device> = {
+    success: true,
+    data: newDevice,
+    message: 'Device added successfully',
+    timestamp: new Date(),
+  };
 
-    res.json(response);
+  res.status(201).json(response);
+}));
 
-  } catch (error) {
-    logger.error(`Failed to disconnect device ${req.params.id}:`, error);
-    
-    const response: ApiResponse = {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to disconnect device',
-      timestamp: new Date()
-    };
+// PUT /api/devices/:id - Update device settings
+router.put('/:id', asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { name, room, isEnabled } = req.body;
 
-    res.status(500).json(response);
+  const deviceIndex = devices.findIndex(d => d.id === id);
+  
+  if (deviceIndex === -1) {
+    throw createError('Device not found', 404);
   }
-});
 
-// POST /api/devices/:id/control - Control a device
-devicesRouter.post('/:id/control', async (req, res) => {
-  try {
-    const deviceManager: DeviceManager = req.app.locals.deviceManager;
-    const deviceId = req.params.id;
-    const { command, parameters } = req.body;
+  // Update device
+  const device = devices[deviceIndex];
+  if (name) device.name = name;
+  if (room) device.room = room;
+  if (typeof isEnabled === 'boolean') device.isEnabled = isEnabled;
+  device.updatedAt = new Date();
 
-    if (!command) {
-      const response: ApiResponse = {
-        success: false,
-        error: 'command is required',
-        timestamp: new Date()
-      };
-      return res.status(400).json(response);
-    }
+  devices[deviceIndex] = device;
 
-    const controlCommand: DeviceControlCommand = {
-      deviceId,
-      command,
-      parameters
-    };
+  logger.info(`Updated device: ${device.name} (${device.id})`);
 
-    logger.info(`Controlling device via API: ${deviceId} - ${command}`);
+  const response: ApiResponse<Device> = {
+    success: true,
+    data: device,
+    message: 'Device updated successfully',
+    timestamp: new Date(),
+  };
 
-    const controlResponse = await deviceManager.controlDevice(controlCommand);
+  res.json(response);
+}));
 
-    const response: ApiResponse = {
-      success: controlResponse.success,
-      data: controlResponse,
-      error: controlResponse.error,
-      timestamp: new Date()
-    };
+// DELETE /api/devices/:id - Remove device
+router.delete('/:id', asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
 
-    res.status(controlResponse.success ? 200 : 500).json(response);
-
-  } catch (error) {
-    logger.error(`Failed to control device ${req.params.id}:`, error);
-    
-    const response: ApiResponse = {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to control device',
-      timestamp: new Date()
-    };
-
-    res.status(500).json(response);
+  const deviceIndex = devices.findIndex(d => d.id === id);
+  
+  if (deviceIndex === -1) {
+    throw createError('Device not found', 404);
   }
-});
 
-// POST /api/devices/refresh - Refresh all device statuses
-devicesRouter.post('/refresh', async (req, res) => {
-  try {
-    const deviceManager: DeviceManager = req.app.locals.deviceManager;
+  const device = devices[deviceIndex];
+  devices.splice(deviceIndex, 1);
 
-    logger.info('Refreshing all device statuses via API');
+  logger.info(`Removed device: ${device.name} (${device.id})`);
 
-    await deviceManager.refreshDeviceStatus();
+  const response: ApiResponse = {
+    success: true,
+    message: 'Device removed successfully',
+    timestamp: new Date(),
+  };
 
-    const response: ApiResponse = {
-      success: true,
-      data: { message: 'Device statuses refreshed' },
-      timestamp: new Date()
-    };
+  res.json(response);
+}));
 
-    res.json(response);
-
-  } catch (error) {
-    logger.error('Failed to refresh device statuses:', error);
-    
-    const response: ApiResponse = {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to refresh devices',
-      timestamp: new Date()
-    };
-
-    res.status(500).json(response);
+// POST /api/devices/:id/control - Control device (turn on/off, etc.)
+router.post('/:id/control', asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const validatedRequest = deviceControlSchema.parse(req.body);
+  
+  const device = devices.find(d => d.id === id);
+  
+  if (!device) {
+    throw createError('Device not found', 404);
   }
-});
+
+  if (!device.isOnline) {
+    throw createError('Device is offline', 503);
+  }
+
+  if (!device.isEnabled) {
+    throw createError('Device is disabled', 403);
+  }
+
+  const command: DeviceCommand = {
+    ...validatedRequest.command,
+    timestamp: new Date(),
+  };
+
+  // TODO: Implement actual device control based on protocol
+  // For now, simulate the command execution
+  logger.info(`Executing command ${command.type} on device ${device.name}`);
+
+  // Simulate command execution delay
+  await new Promise(resolve => setTimeout(resolve, 500));
+
+  // Create mock device status response
+  const deviceStatus: DeviceStatus = {
+    deviceId: device.id,
+    isOnline: device.isOnline,
+    powerState: command.type === DeviceCommandType.POWER_ON ? true : 
+                command.type === DeviceCommandType.POWER_OFF ? false : 
+                command.type === DeviceCommandType.TOGGLE ? true : false, // Mock toggle
+    powerReading: device.capabilities.hasPowerMonitoring ? {
+      power: Math.random() * 100, // Mock power reading
+      voltage: 230,
+      current: 0.5,
+      energy: Math.random() * 10,
+      timestamp: new Date(),
+    } : undefined,
+    lastUpdate: new Date(),
+  };
+
+  // Update device last seen
+  device.lastSeen = new Date();
+  const deviceIndex = devices.findIndex(d => d.id === id);
+  if (deviceIndex !== -1) {
+    devices[deviceIndex] = device;
+  }
+
+  const response: ApiResponse<DeviceStatus> = {
+    success: true,
+    data: deviceStatus,
+    message: `Command ${command.type} executed successfully`,
+    timestamp: new Date(),
+  };
+
+  res.json(response);
+}));
+
+// GET /api/devices/:id/status - Get device status
+router.get('/:id/status', asyncHandler(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  
+  const device = devices.find(d => d.id === id);
+  
+  if (!device) {
+    throw createError('Device not found', 404);
+  }
+
+  // TODO: Get actual device status from the device
+  // For now, return mock status
+  const deviceStatus: DeviceStatus = {
+    deviceId: device.id,
+    isOnline: device.isOnline,
+    powerState: Math.random() > 0.5, // Random power state for mock
+    powerReading: device.capabilities.hasPowerMonitoring ? {
+      power: Math.random() * 100,
+      voltage: 230,
+      current: 0.5,
+      energy: Math.random() * 10,
+      timestamp: new Date(),
+    } : undefined,
+    lastUpdate: new Date(),
+  };
+
+  const response: ApiResponse<DeviceStatus> = {
+    success: true,
+    data: deviceStatus,
+    message: 'Device status retrieved successfully',
+    timestamp: new Date(),
+  };
+
+  res.json(response);
+}));
+
+export default router;

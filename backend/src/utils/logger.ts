@@ -1,55 +1,79 @@
-const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
+import winston from 'winston';
+import path from 'path';
 
-enum LogLevel {
-  DEBUG = 0,
-  INFO = 1,
-  WARN = 2,
-  ERROR = 3
-}
-
-const getLogLevel = (level: string): LogLevel => {
-  switch (level.toLowerCase()) {
-    case 'debug': return LogLevel.DEBUG;
-    case 'info': return LogLevel.INFO;
-    case 'warn': return LogLevel.WARN;
-    case 'error': return LogLevel.ERROR;
-    default: return LogLevel.INFO;
-  }
+// Define log levels
+const levels = {
+  error: 0,
+  warn: 1,
+  info: 2,
+  http: 3,
+  debug: 4,
 };
 
-const currentLogLevel = getLogLevel(LOG_LEVEL);
-
-const formatMessage = (level: string, message: string, ...args: any[]): string => {
-  const timestamp = new Date().toISOString();
-  const formattedArgs = args.length > 0 ? ' ' + args.map(arg => 
-    typeof arg === 'object' ? JSON.stringify(arg, null, 2) : String(arg)
-  ).join(' ') : '';
-  
-  return `[${timestamp}] ${level.padEnd(5)} ${message}${formattedArgs}`;
+// Define colors for each level
+const colors = {
+  error: 'red',
+  warn: 'yellow',
+  info: 'green',
+  http: 'magenta',
+  debug: 'white',
 };
 
-export const logger = {
-  debug: (message: string, ...args: any[]) => {
-    if (currentLogLevel <= LogLevel.DEBUG) {
-      console.log(formatMessage('DEBUG', message, ...args));
-    }
-  },
+winston.addColors(colors);
+
+// Define log format
+const format = winston.format.combine(
+  winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss:ms' }),
+  winston.format.colorize({ all: true }),
+  winston.format.printf(
+    (info) => `${info.timestamp} ${info.level}: ${info.message}`,
+  ),
+);
+
+// Define which transports to use
+const transports = [
+  // Console transport
+  new winston.transports.Console({
+    format: winston.format.combine(
+      winston.format.colorize(),
+      winston.format.simple()
+    )
+  }),
   
-  info: (message: string, ...args: any[]) => {
-    if (currentLogLevel <= LogLevel.INFO) {
-      console.log(formatMessage('INFO', message, ...args));
-    }
-  },
+  // File transport for errors
+  new winston.transports.File({
+    filename: path.join(process.cwd(), 'logs', 'error.log'),
+    level: 'error',
+    format: winston.format.combine(
+      winston.format.timestamp(),
+      winston.format.json()
+    )
+  }),
   
-  warn: (message: string, ...args: any[]) => {
-    if (currentLogLevel <= LogLevel.WARN) {
-      console.warn(formatMessage('WARN', message, ...args));
-    }
+  // File transport for all logs
+  new winston.transports.File({
+    filename: path.join(process.cwd(), 'logs', 'combined.log'),
+    format: winston.format.combine(
+      winston.format.timestamp(),
+      winston.format.json()
+    )
+  }),
+];
+
+// Create the logger
+const logger = winston.createLogger({
+  level: process.env.LOG_LEVEL || 'info',
+  levels,
+  format,
+  transports,
+  exitOnError: false,
+});
+
+// Create a stream object for Morgan HTTP logging
+export const morganStream = {
+  write: (message: string) => {
+    logger.http(message.trim());
   },
-  
-  error: (message: string, ...args: any[]) => {
-    if (currentLogLevel <= LogLevel.ERROR) {
-      console.error(formatMessage('ERROR', message, ...args));
-    }
-  }
 };
+
+export default logger;

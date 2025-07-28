@@ -1,61 +1,95 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import morgan from 'morgan';
-import dotenv from 'dotenv';
+import rateLimit from 'express-rate-limit';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
+import dotenv from 'dotenv';
 
-import { discoveryRouter } from './routes/discovery';
-import { devicesRouter } from './routes/devices';
-import { DeviceManager } from './services/DeviceManager';
-import { logger } from './utils/logger';
+import logger from '@/utils/logger';
+import { errorHandler } from '@/middleware/errorHandler';
+import { requestLogger } from '@/middleware/requestLogger';
+
+// Import routes
+import discoveryRoutes from '@/routes/discovery';
+import deviceRoutes from '@/routes/devices';
+import healthRoutes from '@/routes/health';
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3001;
-const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5174';
-
-// Create HTTP server and Socket.IO
 const server = createServer(app);
 const io = new SocketIOServer(server, {
   cors: {
-    origin: CORS_ORIGIN,
-    methods: ['GET', 'POST']
+    origin: process.env.FRONTEND_URL || "http://localhost:5174",
+    methods: ["GET", "POST"]
   }
 });
 
-// Initialize device manager
-const deviceManager = new DeviceManager(io);
+const PORT = process.env.PORT || 3001;
 
-// Middleware
-app.use(helmet());
-app.use(cors({
-  origin: CORS_ORIGIN,
-  credentials: true
+// Trust proxy for rate limiting behind reverse proxy
+app.set('trust proxy', 1);
+
+// Security middleware
+app.use(helmet({
+  crossOriginEmbedderPolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+    },
+  },
 }));
-app.use(morgan('combined'));
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
-// Make device manager available to routes
-app.locals.deviceManager = deviceManager;
+// CORS configuration
+app.use(cors({
+  origin: process.env.FRONTEND_URL || "http://localhost:5174",
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+}));
 
-// Routes
-app.use('/api/discovery', discoveryRouter);
-app.use('/api/devices', devicesRouter);
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: {
+    error: 'Too many requests from this IP, please try again later.',
+    retryAfter: '15 minutes'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/', limiter);
 
-// Health check endpoint
-app.get('/api/health', (req, res) => {
+// Body parsing middleware
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Request logging middleware
+app.use(requestLogger);
+
+// API Routes
+app.use('/api/health', healthRoutes);
+app.use('/api/discovery', discoveryRoutes);
+app.use('/api/devices', deviceRoutes);
+
+// Root endpoint
+app.get('/', (req, res) => {
   res.json({
-    success: true,
-    data: {
-      status: 'healthy',
-      uptime: process.uptime(),
-      timestamp: new Date(),
-      environment: process.env.NODE_ENV || 'development'
+    name: 'SmartPlug Decoder API',
+    version: '1.0.0',
+    status: 'running',
+    timestamp: new Date().toISOString(),
+    endpoints: {
+      health: '/api/health',
+      discovery: '/api/discovery',
+      devices: '/api/devices',
+      websocket: '/socket.io'
     }
   });
 });
@@ -65,62 +99,63 @@ app.use('*', (req, res) => {
   res.status(404).json({
     success: false,
     error: 'Endpoint not found',
-    timestamp: new Date()
+    message: `Route ${req.originalUrl} not found`,
+    timestamp: new Date().toISOString()
   });
 });
 
-// Error handler
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  logger.error('Unhandled error:', err);
-  res.status(500).json({
-    success: false,
-    error: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error',
-    timestamp: new Date()
-  });
-});
+// Error handling middleware (must be last)
+app.use(errorHandler);
 
-// WebSocket connection handling
+// Socket.IO connection handling
 io.on('connection', (socket) => {
   logger.info(`Client connected: ${socket.id}`);
-  
-  socket.on('disconnect', () => {
-    logger.info(`Client disconnected: ${socket.id}`);
+
+  socket.on('join-room', (room: string) => {
+    socket.join(room);
+    logger.debug(`Socket ${socket.id} joined room: ${room}`);
   });
-  
-  // Send current device states to new client
-  socket.emit('initial_state', {
-    devices: deviceManager.getConnectedDevices(),
-    timestamp: new Date()
+
+  socket.on('leave-room', (room: string) => {
+    socket.leave(room);
+    logger.debug(`Socket ${socket.id} left room: ${room}`);
+  });
+
+  socket.on('disconnect', (reason) => {
+    logger.info(`Client disconnected: ${socket.id}, reason: ${reason}`);
   });
 });
+
+// Graceful shutdown handling
+const gracefulShutdown = (signal: string) => {
+  logger.info(`Received ${signal}. Starting graceful shutdown...`);
+  
+  server.close(() => {
+    logger.info('HTTP server closed.');
+    
+    // Close other connections (database, redis, etc.)
+    process.exit(0);
+  });
+
+  // Force close after 10 seconds
+  setTimeout(() => {
+    logger.error('Could not close connections in time, forcefully shutting down');
+    process.exit(1);
+  }, 10000);
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // Start server
 server.listen(PORT, () => {
-  logger.info(`🚀 SmartPlug Backend API server running on port ${PORT}`);
-  logger.info(`📡 WebSocket server ready for real-time updates`);
-  logger.info(`🔗 CORS enabled for: ${CORS_ORIGIN}`);
-  
-  // Start device discovery service
-  deviceManager.startDiscoveryService();
+  logger.info(`🚀 SmartPlug Decoder API server running on port ${PORT}`);
+  logger.info(`📱 Frontend URL: ${process.env.FRONTEND_URL || "http://localhost:5174"}`);
+  logger.info(`🔗 API Base URL: http://localhost:${PORT}/api`);
+  logger.info(`🔌 WebSocket URL: http://localhost:${PORT}/socket.io`);
+  logger.info(`📊 Health Check: http://localhost:${PORT}/api/health`);
 });
 
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  logger.info('Received SIGTERM, shutting down gracefully');
-  deviceManager.shutdown();
-  server.close(() => {
-    logger.info('Server closed');
-    process.exit(0);
-  });
-});
-
-process.on('SIGINT', () => {
-  logger.info('Received SIGINT, shutting down gracefully');
-  deviceManager.shutdown();
-  server.close(() => {
-    logger.info('Server closed');
-    process.exit(0);
-  });
-});
-
+// Export for testing
+export { app, server, io };
 export default app;

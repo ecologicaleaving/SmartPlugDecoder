@@ -1,0 +1,186 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# State Management Architecture
+
+## Directory Structure and Organization
+
+- **File Organization Pattern**
+  - State modules are organized by domain (e.g., session, event)
+  - Each module includes: 
+    - `action-types.ts` - Constants for action type strings
+    - `types.ts` - Type definitions for state and actions
+    - `actions.ts` - Action creators
+    - `reducer.ts` - State reducer
+    - `index.ts` - Re-exports module components
+    - `reducer.test.ts` - Tests for reducer behavior
+
+```typescript
+// ✅ DO: Organize related state in domain folders
+src/state/
+  session/
+    action-types.ts
+    types.ts
+    actions.ts
+    reducer.ts
+    index.ts
+    reducer.test.ts
+  event/
+    // Same structure as session
+  index.ts   // Central re-export for all state modules
+  hooks.ts   // Enhanced state hooks with debugging
+  providers.ts // Context providers
+  utils/     // Shared utilities for state management
+```
+
+## State Management Pattern
+
+- **Context-based Reactive State Management**
+  - React Context API for state propagation
+  - Reducer pattern for state updates
+  - Strongly typed interfaces for all state and actions
+  - Centralized imports via main `state/index.ts` export
+
+- **State Definition Pattern**
+  ```typescript
+  // ✅ DO: Define comprehensive state interfaces
+  export interface SessionState {
+    sessions: Session[];
+    selectedSessionId: string | null;
+    activeSessionId: string | null;
+    isLoading: boolean;
+    error: string | null;
+  }
+  
+  // ✅ DO: Provide a typed initial state
+  export const initialSessionState: SessionState = {
+    sessions: [],
+    selectedSessionId: null,
+    activeSessionId: null,
+    isLoading: false,
+    error: null
+  };
+  ```
+
+## Action Types and Actions
+
+- **Action Type Constants**
+  ```typescript
+  // ✅ DO: Group action types by feature
+  // Request/Success/Failure pattern for async operations
+  export const SESSIONS_FETCH_REQUEST = 'session/SESSIONS_FETCH_REQUEST';
+  export const SESSIONS_FETCH_SUCCESS = 'session/SESSIONS_FETCH_SUCCESS';
+  export const SESSIONS_FETCH_FAILURE = 'session/SESSIONS_FETCH_FAILURE';
+  ```
+
+- **Action Creator Pattern**
+  ```typescript
+  // ✅ DO: Create strongly typed action creators
+  export const sessionsFetchRequest = (): Types.SessionsFetchRequestAction => ({
+    type: ActionTypes.SESSIONS_FETCH_REQUEST
+  });
+  
+  export const sessionsFetchSuccess = (sessions: Session[]): Types.SessionsFetchSuccessAction => ({
+    type: ActionTypes.SESSIONS_FETCH_SUCCESS,
+    payload: sessions
+  });
+  ```
+
+## Reducer Implementation
+
+- **Reducer Structure**
+  ```typescript
+  // ✅ DO: Organize reducers with helper functions for common operations
+  const updateSession = (sessions: Session[], updatedSession: Session): Session[] => {
+    return sessions.map(session => 
+      session.id === updatedSession.id ? updatedSession : session
+    );
+  };
+  
+  export const sessionReducer = (
+    state: SessionState = initialSessionState,
+    action: SessionActionTypes
+  ): SessionState => {
+    switch (action.type) {
+      case ActionTypes.SESSIONS_FETCH_REQUEST:
+        return {
+          ...state,
+          isLoading: true,
+          error: null
+        };
+      // Additional cases...
+    }
+  };
+  ```
+
+## Testing Approach
+
+- **Comprehensive Test Coverage**
+  - Each reducer requires 100% test coverage
+  - Tests should verify each action handler
+  - Test initial state, loading states, success cases, and error handling
+
+- **Test Pattern**
+  ```typescript
+  // ✅ DO: Test each action handler in isolation
+  describe('session management actions', () => {
+    it('should handle SESSION_CREATE_SUCCESS', () => {
+      const action = actions.sessionCreateSuccess(mockSession);
+      const state = sessionReducer(initialSessionState, action);
+      
+      expect(state.sessions).toHaveLength(1);
+      expect(state.sessions[0]).toEqual(mockSession);
+      expect(state.isLoading).toBe(false);
+      expect(state.error).toBeNull();
+    });
+  });
+  ```
+
+## Debugging and Development
+
+- **Debugging Enhancers**
+  - Debug mode for extra console logging of state changes
+  - Tracing middleware for tracking action dispatch
+
+- **Developer Experience**
+  - Use generated hooks with built-in debugging support
+  - Centralized imports through main state index
+  - Consistent patterns for all state management code
+
+## Error Handling
+
+- **Consistent Error State Management**
+  - All error states captured in the state object
+  - All async operations follow request/success/failure pattern
+  - Error messages propagated through state for UI display
+
+## Integration with UI Components
+
+- **Using State in Components**
+  ```typescript
+  // ✅ DO: Import hooks from central state export
+  import { useSession, useEvents } from '../state';
+  
+  const MyComponent = () => {
+    const { sessions, isLoading, error } = useSession();
+    
+    if (isLoading) return <LoadingSpinner />;
+    if (error) return <ErrorMessage message={error} />;
+    
+    return (
+      <div>
+        {sessions.map(session => (
+          <SessionItem key={session.id} session={session} />
+        ))}
+      </div>
+    );
+  };
+  ```
+
+- **Use only one DragDropContext per component tree**
+  - Never nest or duplicate DragDropContext instances in the same subtree
+  - Multiple DnD contexts cause context collisions and unpredictable drag-and-drop bugs
+  - Always wrap all DnD-enabled lists/components in a single, top-level DragDropContext
+  - See [debug_rules.md](mdc:.cursor/rules/debug_rules.md) for more details and the AgendaPanel.tsx fix example

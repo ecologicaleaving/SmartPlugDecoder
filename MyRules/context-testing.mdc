@@ -1,0 +1,273 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# React Context Testing Guidelines
+
+- **Context Provider Testing Strategy**
+  - Always test contexts with dedicated mock providers
+  - Create type-safe custom render helpers for components that use context
+  - Use consistent patterns across the application for all context testing
+
+- **Create Dedicated Test Utilities for Each Context**
+  ```typescript
+  // ✅ DO: Create TypeScript-typed mock context utilities
+  // In test-utils/setupSomeContextMock.tsx:
+  
+  import React, { createContext, ReactNode } from 'react';
+  import { render, RenderOptions, RenderResult } from '@testing-library/react';
+  
+  // Define the shape of the mock context using proper types
+  export interface MockContextType {
+    someValue: string;
+    someFunction: jest.Mock;
+  }
+  
+  // Create a typed mock context
+  const MockContext = createContext<MockContextType | null>(null);
+  
+  // Export reusable mock values
+  export const mockContextValues: MockContextType = {
+    someValue: 'default',
+    someFunction: jest.fn()
+  };
+  
+  // Create a wrapper provider component with customizable values
+  export function MockContextProvider({ 
+    children, 
+    mockValues = {} 
+  }: { 
+    children: ReactNode;
+    mockValues?: Partial<MockContextType>;
+  }) {
+    const value = { ...mockContextValues, ...mockValues };
+    return <MockContext.Provider value={value}>{children}</MockContext.Provider>;
+  }
+  
+  // Provide a custom render function
+  export function renderWithContext(
+    ui: React.ReactElement,
+    options: {
+      mockValues?: Partial<MockContextType>;
+      renderOptions?: Omit<RenderOptions, 'wrapper'>;
+    } = {}
+  ): RenderResult {
+    const { mockValues, renderOptions } = options;
+    return render(ui, {
+      wrapper: ({ children }) => (
+        <MockContextProvider mockValues={mockValues}>
+          {children}
+        </MockContextProvider>
+      ),
+      ...renderOptions
+    });
+  }
+  
+  // Mock the actual context module
+  jest.mock('../contexts/SomeContext', () => ({
+    __esModule: true,
+    SomeProvider: ({ children }: { children: ReactNode }) => children,
+    useSomeContext: () => {
+      const { mockContextValues } = jest.requireActual('./setupSomeContextMock');
+      return mockContextValues;
+    }
+  }));
+  
+  // ❌ DON'T: Use untyped mocks or bypass provider wrapping
+  // Don't use inline mocks in each test file
+  ```
+
+- **Usage in Component Tests**
+  ```typescript
+  // ✅ DO: Use the custom render function with mock values
+  import { renderWithContext } from '../test-utils/setupSomeContextMock';
+  
+  test('component uses context correctly', () => {
+    const mockFn = jest.fn();
+    
+    renderWithContext(<MyComponent />, {
+      mockValues: {
+        someValue: 'test value',
+        someFunction: mockFn
+      }
+    });
+    
+    // Test component behavior
+  });
+  
+  // ❌ DON'T: Import from React Testing Library directly
+  // import { render } from '@testing-library/react';
+  // Don't create inline mocks for context in each test
+  ```
+
+- **Mocking Multiple Contexts**
+  ```typescript
+  // ✅ DO: Create composable context providers for multiple contexts
+  function renderWithMultipleContexts(ui: React.ReactElement, options = {}) {
+    const { contextAValues, contextBValues, ...renderOptions } = options;
+    
+    return render(ui, {
+      wrapper: ({ children }) => (
+        <ContextAProvider mockValues={contextAValues}>
+          <ContextBProvider mockValues={contextBValues}>
+            {children}
+          </ContextBProvider>
+        </ContextAProvider>
+      ),
+      ...renderOptions
+    });
+  }
+  
+  // ❌ DON'T: Use separate render calls or nest render functions
+  ```
+
+- **Testing Context Updates**
+  ```typescript
+  // ✅ DO: Test context changes with rerender
+  test('component responds to context changes', () => {
+    const { rerender } = renderWithContext(<MyComponent />, {
+      mockValues: { someValue: 'initial' }
+    });
+    
+    // Test initial state
+    
+    // Rerender with new context values
+    rerender(<MyComponent />);
+    mockContextValues.someValue = 'updated';
+    
+    // Test updated state
+  });
+  
+  // ❌ DON'T: Modify context values without rerendering
+  ```
+
+- **Testing Context Error Handling**
+  ```typescript
+  // ✅ DO: Test error handling when context is missing
+  test('throws error when used outside provider', () => {
+    // Don't use the context provider wrapper
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+    
+    expect(() => {
+      render(<ComponentUsingContext />);
+    }).toThrow('must be used within a Provider');
+    
+    consoleErrorSpy.mockRestore();
+  });
+  
+  // ❌ DON'T: Skip testing error cases
+  ```
+
+- **Best Practices for WebSocket Context Testing**
+  - Use the `setupWebSocketMock.tsx` utility for all WebSocket-dependent components
+  - Prefer the `renderWithWebSocket` function over direct RTL render
+  - Provide all necessary mock values through the options parameter
+  - Reset mocks between tests with `resetWebSocketMocks()`
+  - Test all connection states: connected, disconnected, connecting, error
+  
+  ```typescript
+  // ✅ DO: Use the WebSocket testing utility with proper states
+  import { renderWithWebSocket } from '../test-utils/setupWebSocketMock';
+  import { ConnectionStatus } from '../services/WebSocketService';
+  
+  test('handles connection status correctly', () => {
+    renderWithWebSocket(<MyComponent />, {
+      mockValues: { 
+        status: ConnectionStatus.Connected,
+        isConnected: true,
+        reconnect: jest.fn()
+      }
+    });
+    
+    // Test component behavior when connected
+  });
+  
+  // ❌ DON'T: Manipulate WebSocket state without proper context
+  ```
+
+- **Creating New Context Mock Utilities**
+  - Follow the pattern in `setupWebSocketMock.tsx` for all new context mock utilities
+  - Always provide TypeScript interfaces for mock values
+  - Ensure jest.mock calls use requireActual to maintain state between tests
+  - Create dedicated test render functions for each context
+  - Consider interactions between multiple contexts in complex components
+
+- **Performance Considerations**
+  - Mock at the module level to avoid re-mocking in each test
+  - Use beforeEach to reset mock values rather than recreating mocks
+  - Prefer object spread for updating mock values over modifying properties
+  
+  ```typescript
+  // ✅ DO: Reset mocks efficiently 
+  beforeEach(() => {
+    resetMocks();
+  });
+  
+  // ❌ DON'T: Recreate mocks for each test
+  ```
+
+- **Factory Function Implementation**
+  - Never reference imported variables in `jest.mock()` factories
+  - Define all values locally within factory functions
+  - For enums/constants, redefine them within the mock
+  ```typescript
+  // ✅ DO: Define values locally within mock factory
+  jest.mock('./WebSocketContext', () => {
+    // Local definitions
+    const mockStatus = {
+      Connected: 'connected',
+      Disconnected: 'disconnected'
+    };
+    
+    return {
+      useWebSocket: () => ({
+        status: mockStatus.Disconnected,
+        isConnected: false
+      })
+    };
+  });
+  
+  // ❌ DON'T: Reference imported values
+  jest.mock('./WebSocketContext', () => ({
+    useWebSocket: () => ({ 
+      status: ConnectionStatus.Connected // Error: Can't reference imported values
+    })
+  }));
+  ```
+
+- **Alternative Component-Based Approach**
+  - When factory functions are problematic, use direct component testing
+  - Create test components that mimic the behavior of real components
+  - Pass props to control component behavior instead of context values
+  ```typescript
+  // ✅ DO: Create test components that mimic real components
+  // TestConnectionStatus.tsx
+  function TestConnectionStatus({
+    status = 'disconnected',
+    isConnected = false,
+    reconnect = jest.fn()
+  }) {
+    // Implementation that mimics the real component
+    return (
+      <div role="status">
+        <span>{status}</span>
+        {status === 'disconnected' && (
+          <button onClick={reconnect}>Reconnect</button>
+        )}
+      </div>
+    );
+  }
+  
+  // In tests:
+  test('shows reconnect button when disconnected', () => {
+    render(<TestConnectionStatus status="disconnected" />);
+    expect(screen.getByRole('button')).toBeInTheDocument();
+  });
+  ```
+
+- **Focus on Behavior, Not Implementation**
+  - Test what users would see and interact with
+  - Avoid testing context implementation details
+  - Test visible component behavior in response to context changes
+  - Verify that components respond correctly to context updates
